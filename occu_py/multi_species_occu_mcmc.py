@@ -7,7 +7,7 @@ from ml_tools.utils import save_pickle_safely
 from os.path import join
 
 
-class EBirdJointChecklistModelNumpyro(ChecklistModel):
+class MultiSpeciesOccuMCMC(ChecklistModel):
     def __init__(
         self,
         env_formula,

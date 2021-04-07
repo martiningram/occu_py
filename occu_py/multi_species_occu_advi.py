@@ -13,7 +13,7 @@ from os.path import join
 from sklearn.preprocessing import StandardScaler
 
 
-class EBirdJointChecklistModel(ChecklistModel):
+class MultiSpeciesOccuADVI(ChecklistModel):
     def __init__(self, env_formula, obs_formula, M=20, n_draws=1000, verbose_fit=True):
 
         self.scaler = None

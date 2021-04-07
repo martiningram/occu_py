@@ -14,7 +14,7 @@ from .functional.max_lik_occu_model import fit, predict_env_logit, predict_obs_l
 from ml_tools.patsy import create_formula
 
 
-class LinearChecklistModel(ChecklistModel):
+class MaxLikOccu(ChecklistModel):
     def __init__(self, env_formula, det_formula):
 
         self.fit_results = None

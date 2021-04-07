@@ -17,7 +17,7 @@ from .functional.utils import predict_env_from_samples, predict_obs_from_samples
 from ml_tools.patsy import remove_intercept_column
 
 
-class EBirdJointChecklistModelStan(ChecklistModel):
+class MultiSpeciesOccuStan(ChecklistModel):
     def __init__(self, model_file, env_formula, obs_formula):
 
         self.scaler = None
