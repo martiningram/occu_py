@@ -27,7 +27,7 @@ class ChecklistModel(ABC):
 
     @abstractmethod
     def save_model(self, target_folder: str) -> None:
-        """ Saves the model to files in the target folder.
+        """Saves the model to files in the target folder.
 
         Args:
             target_file: Where to save the model parameters [folder name].
@@ -35,5 +35,17 @@ class ChecklistModel(ABC):
         Returns:
             Nothing, but stores model parameters in files in a folder at the
             path given.
+        """
+        pass
+
+    @abstractmethod
+    def restore_model(self, model_folder: str) -> None:
+        """Restores the model from the directory.
+
+        Args:
+             model_folder: Where the model was saved to.
+
+        Returns:
+            Nothing, but restores the model to its state before saving.
         """
         pass
