@@ -86,6 +86,12 @@ def fit(
 
     draws = result["draws"]
 
+    # Include the obs coefs (not raw):
+    draws["obs_coefs"] = (
+        draws["obs_coefs_raw"] * draws["obs_coef_prior_sds"]
+        + draws["obs_coef_prior_means"]
+    )
+
     # Add a dimension "chain":
     draws = {x: jnp.expand_dims(y, axis=0) for x, y in draws.items()}
     az_trace = az.from_dict(posterior=draws)
