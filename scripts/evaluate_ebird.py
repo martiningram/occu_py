@@ -188,7 +188,7 @@ for cur_model_name, model in models.items():
     X_env.to_csv(os.path.join(target_dir, "X_env.csv"))
     X_checklist.to_csv(os.path.join(target_dir, "X_checklist.csv"))
     y_checklist.to_csv(os.path.join(target_dir, "y_checklist.csv"))
-    np.savez(os.path.join("cell_ids"), checklist_cell_ids)
+    np.savez(os.path.join(target_dir, "cell_ids"), checklist_cell_ids)
 
     assert not np.any(X_env.isnull().values)
     assert not np.any(X_checklist.isnull().values)
