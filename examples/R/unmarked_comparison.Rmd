@@ -1,0 +1,117 @@
+---
+title: "Comparing unmarked and OccuPy"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+First, we fit the model with unmarked:
+
+```{r}
+library(unmarked)
+
+data <- read.csv(system.file("csv", "widewt.csv", package = "unmarked"))
+
+y <- data[ ,2:4]
+
+siteCovs <-  data[ ,5:7]
+
+obsCovs <- list(date = data[ ,8:10],
+                ivel = data[ ,11:13])
+
+umf <- unmarkedFrameOccu(y = y, siteCovs = siteCovs, obsCovs = obsCovs)
+
+fm1 <- occu(formula = ~ date + ivel
+                      ~ forest + elev + length,
+            data = umf)
+```
+
+We can extract the estimates for the state and the detection model:
+
+```{r}
+state_coefs <- coef(fm1, 'state')
+det_coefs <- coef(fm1, 'det')
+
+state_coefs
+```
+
+```{r}
+det_coefs
+```
+
+Now we can compare this with the python version.
+
+```{r}
+library(reticulate)
+
+# Change this to whichever environment you are using
+use_condaenv('pymc3', required=TRUE)
+
+# Imports:
+np <- import('numpy')
+pd <- import('pandas')
+max_lik_occu <- import('occu_py.max_lik_occu', convert = FALSE)
+```
+
+We now reshape the data to be in the format required.
+
+```{r}
+env_covs <- data[, c('elev', 'forest', 'length')]
+
+dates <- data[, c('date.1', 'date.2', 'date.3')]
+ivels <- data[, c('ivel.1', 'ivel.2', 'ivel.3')]
+ys <- data[, c('y.1', 'y.2', 'y.3')]
+
+flat_dates <- as.vector(t(dates))
+flat_ivels <- as.vector(t(ivels))
+flat_ys <- as.vector(t(ys))
+cell_ids <- np$reshape(np$transpose(np$tile(np$arange(nrow(data)), c(3L, 1L))), -1L)
+
+obs_data <- data.frame(date = flat_dates, ivel = flat_ivels, y = flat_ys, cell_ids)
+
+head(obs_data)
+```
+
+The advantage of this "flat" format is that we no longer need to code missing visits as NA and can just drop them. This is much more efficient when there are large differences in the number of visits by cell.
+
+```{r}
+obs_data <- na.omit(obs_data)
+```
+
+We now have all we need to fit the occupancy model:
+
+```{r}
+obs_covs <- obs_data[, c('date', 'ivel')]
+cell_ids <- obs_data$cell_ids
+present <- obs_data$y
+
+max_lik_occu_model <- max_lik_occu$MaxLikOccu(env_formula='forest + elev + length', det_formula = 'date + ivel')
+
+max_lik_occu_model$fit(
+  X_env = env_covs, 
+  X_checklist = obs_covs, 
+  y_checklist = data.frame(present), 
+  checklist_cell_ids = reticulate::np_array(cell_ids, dtype = np$int))
+```
+
+We can now see that the coefficients estimated are essentially the same:
+
+```{r}
+max_lik_occu_model$fit_results[0]$env_coefs
+```
+
+```{r}
+state_coefs
+```
+
+```{r}
+max_lik_occu_model$fit_results[0]$obs_coefs
+```
+
+```{r}
+det_coefs
+```
+
+Prediction works the same as in the other models in `occu_py`; please see these for details.

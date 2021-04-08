@@ -1,0 +1,151 @@
+---
+title: "OccuPy Reticulate Example"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Occupancy detection modelling with OccuPy and R
+
+Although `occu_py` is written in python, we can use `reticulate` to use it from R. This document shows how on a small subset of eBird using 8,000 checklists and 32 species.
+
+```{r}
+# Load example data
+
+# Observation covariates
+X_checklist <- read.csv('../data/X_checklist.csv', row.names = 1)
+
+# Observations
+y_checklist <- read.csv('../data/y_checklist.csv', check.names = FALSE, row.names = 1)
+
+# Cell ids
+checklist_cell_ids <- read.csv('../data/checklist_cell_ids.csv', row.names = 1)
+
+# Environment variables
+X_env <- read.csv('../data/X_env.csv', row.names = 1)
+```
+
+```{r}
+# We'll want to scale the continuous environment variables.
+bio_cols <- colnames(X_env)[grepl('bio', colnames(X_env))]
+
+X_env_bio <- X_env[, bio_cols]
+X_env_bio_scaled <- scale(X_env_bio)
+
+# We also want to use the "has_" covariates:
+discrete_cols <- X_env[, grepl('has_', colnames(X_env))] == 'True'
+
+full_X_env <- cbind(X_env_bio_scaled, discrete_cols)
+```
+
+```{r}
+# We need to standardise log_duration:
+log_durations <- X_checklist$log_duration
+log_duration_mean <- mean(log_durations)
+log_duration_sd <- sd(log_durations)
+
+X_checklist$log_duration_z <- (log_durations - log_duration_mean) / log_duration_sd
+```
+
+```{r}
+full_X_env <- data.frame(full_X_env)
+head(full_X_env)
+```
+
+```{r}
+# options(reticulate.useImportHook = FALSE)
+library(reticulate)
+
+# I installed the package into my "pymc3" conda environment, so:
+use_condaenv('pymc3')
+
+# We need this import, slightly frustratingly, even if we don't actually use MCMC.
+# Numpyro will otherwise assume we want to use the CPU and all JAX computations seem to use it.
+# If you use CPU only, please set the platform to cpu.
+numpyro <- import('numpyro')
+numpyro$set_platform('gpu')
+
+occu_py <- import('occu_py.multi_species_occu_advi')
+ml_tools <- import('ml_tools')
+```
+
+```{r}
+env_formula <- ml_tools$patsy$create_formula(cov_names=bio_cols, main_effects = TRUE, quadratic_effects = TRUE, interactions = FALSE)
+obs_formula <- "protocol_type + daytimes_alt + log_duration_z + dominant_land_cover"
+```
+
+```{r}
+model <- occu_py$MultiSpeciesOccuADVI(env_formula=env_formula, obs_formula=obs_formula, M=100L, n_draws=1000L, verbose_fit=TRUE)
+```
+
+```{r}
+# Takes about 2 minutes on GPU.
+start_time <- Sys.time()
+model$fit(X_env=full_X_env, X_checklist = X_checklist, y_checklist = data.frame(y_checklist == 'True', check.names = FALSE), checklist_cell_ids = checklist_cell_ids$X0)
+end_time <- Sys.time()
+print(end_time - start_time)
+```
+
+```{r}
+az <- import('arviz')
+model$samples$posterior
+```
+```{r}
+# This is an arviz object.
+# We can look at the draws for the intercepts, for example:
+env_intercept_draws <- data.frame(model$samples$posterior$env_intercepts[0]$values)
+colnames(env_intercept_draws) <- colnames(y_checklist)
+
+head(env_intercept_draws)
+```
+
+```{r}
+# We can take a look at the means:
+colMeans(env_intercept_draws)
+```
+```{r}
+model$design_info$obs$column_names
+```
+
+```{r}
+# How about detectability?
+obs_coef_draws <- model$samples$posterior$obs_coefs[0]
+
+# Find the means:
+mean_coefs <- t(obs_coef_draws$mean(dim='draw')$values)
+
+mean_coefs <- data.frame(mean_coefs, row.names = colnames(y_checklist))
+colnames(mean_coefs) <- model$design_info$obs$column_names
+```
+
+```{r}
+mean_coefs[order(mean_coefs$`daytimes_alt[T.dusk]`), ]
+```
+```{r}
+# We can also predict. Here, let's just use the training data.
+# If we want to predict the probabilities of presence, we can use:
+env_preds <- model$predict_marginal_probabilities_direct(X = full_X_env)
+```
+
+```{r}
+# If we want the probability of detection, we can use:
+obs_preds <- model$predict_marginal_probabilities_obs(full_X_env, X_checklist)
+```
+```{r}
+# Save the model
+model$save_model('./saved_model/')
+```
+```{r}
+# Restore it:
+model <- occu_py$MultiSpeciesOccuADVI(env_formula=env_formula, obs_formula=obs_formula, M=100L, n_draws=1000L, verbose_fit=TRUE)
+model$restore_model('./saved_model/')
+
+env_preds_new <- model$predict_marginal_probabilities_direct(X = full_X_env)
+```
+
+```{r}
+all(env_preds_new == env_preds)
+```
+
