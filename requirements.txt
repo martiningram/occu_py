@@ -1,0 +1,9 @@
+numpyro
+scikit-learn
+matplotlib
+jax
+jaxlib
+pandas
+arviz
+patsy
+pystan<3
