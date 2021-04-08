@@ -3,8 +3,10 @@ import numpy as np
 import pandas as pd
 from .functional.hierarchical_checklist_model_mcmc import fit, predict_env, predict_obs
 from os import makedirs
-from ml_tools.utils import save_pickle_safely
+from ml_tools.utils import save_pickle_safely, load_pickle_safely
 from os.path import join
+from ml_tools.patsy import save_design_info, restore_design_info
+import arviz as az
 
 
 class MultiSpeciesOccuMCMC(ChecklistModel):
@@ -34,6 +36,9 @@ class MultiSpeciesOccuMCMC(ChecklistModel):
         checklist_cell_ids: np.ndarray,
     ):
 
+        self.X_env = X_env
+        self.X_checklist = X_checklist
+
         self.samples, self.design_info = fit(
             X_env,
             X_checklist,
@@ -59,6 +64,7 @@ class MultiSpeciesOccuMCMC(ChecklistModel):
         return predict_obs(X, X_obs, self.samples, self.design_info)
 
     def save_model(self, target_folder: str) -> None:
+        # TODO: Test this
 
         makedirs(target_folder, exist_ok=True)
         save_pickle_safely(
@@ -75,3 +81,42 @@ class MultiSpeciesOccuMCMC(ChecklistModel):
             join(target_folder, "design_info.pkl"),
         )
         self.samples.to_netcdf(join(target_folder, "mcmc_samples.netcdf"))
+
+        # Save the design infos
+        save_design_info(
+            self.X_env,
+            self.env_formula,
+            self.design_info["env"],
+            join(target_folder, "design_info_env.pkl"),
+        )
+
+        save_design_info(
+            self.X_checklist,
+            self.obs_formula,
+            self.design_info["obs"],
+            join(target_folder, "design_info_obs.pkl"),
+        )
+
+    def restore_model(self, restore_folder: str) -> None:
+        # TODO: Test this
+
+        self.samples = az.from_netcdf(join(restore_folder, "mcmc_samples.netcdf"))
+
+        env_design_info = restore_design_info(
+            join(restore_folder, "design_info_env.pkl")
+        )
+
+        obs_design_info = restore_design_info(
+            join(restore_folder, "design_info_obs.pkl")
+        )
+
+        other_design_info = load_pickle_safely(join(restore_folder, "design_info.pkl"))
+
+        self.env_formula = other_design_info["env_formula"]
+        self.obs_formula = other_design_info["obs_formula"]
+
+        self.design_info = {
+            "env": env_design_info,
+            "obs": obs_design_info,
+            "species_names": other_design_info["species_names"],
+        }

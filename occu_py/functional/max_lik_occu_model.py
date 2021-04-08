@@ -2,15 +2,11 @@ import numpy as np
 import pandas as pd
 import jax.numpy as jnp
 from ml_tools.max_lik import find_map_estimate
-from patsy import dmatrix
+from patsy import dmatrix, build_design_matrices
 from functools import partial
 from jax import jit
 from sdm_ml.checklist_level.likelihoods import compute_checklist_likelihood
 from sklearn.preprocessing import StandardScaler
-
-# TODO: Remove this dependency
-from jax_advi.diagnostics import compute_ev
-from jax_advi.utils.autodiff import hvp
 
 
 def likelihood_fun(theta, m, X_env, X_checklist, checklist_cell_ids, n_cells):
@@ -60,7 +56,6 @@ def fit(
             X_env=env_covs,
             X_checklist=checklist_covs,
             checklist_cell_ids=cell_ids,
-            # TODO: Is that right?
             n_cells=X_env.shape[0],
         )
     )
@@ -68,8 +63,6 @@ def fit(
     fit_result, opt_result = find_map_estimate(
         theta, lik_curried, opt_method="trust-ncg", gtol=gtol
     )
-
-    # assert opt_result.success, "Optimisation failed!"
 
     env_coef_results = pd.Series(
         fit_result["env_coefs"], index=env_design_mat.design_info.column_names
@@ -87,12 +80,14 @@ def fit(
         "checklist_formula": checklist_formula,
         "optimisation_successful": opt_result.success,
         "opt_result": opt_result,
+        "env_design_info": env_design_mat.design_info,
+        "obs_design_info": checklist_design_mat.design_info,
     }
 
 
-def predict_env_logit(X_env, env_formula, env_coefs, scaler=None):
+def predict_env_logit(X_env, design_info, env_coefs, scaler=None):
 
-    env_design_mat = np.asarray(dmatrix(env_formula, X_env))
+    env_design_mat = np.asarray(build_design_matrices([design_info], X_env)[0])
 
     if scaler is not None:
         env_design_mat = scaler.transform(env_design_mat)
@@ -102,9 +97,9 @@ def predict_env_logit(X_env, env_formula, env_coefs, scaler=None):
     return env_logit
 
 
-def predict_obs_logit(X_obs, obs_formula, obs_coefs):
+def predict_obs_logit(X_obs, design_info, obs_coefs):
 
-    obs_design_mat = np.asarray(dmatrix(obs_formula, X_obs))
+    obs_design_mat = np.asarray(build_design_matrices([design_info], X_obs)[0])
 
     obs_logit = obs_design_mat @ obs_coefs
 

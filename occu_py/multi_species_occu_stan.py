@@ -5,7 +5,7 @@ import pandas as pd
 from tqdm import tqdm
 from patsy import dmatrix, build_design_matrices
 from jax_advi.advi import get_pickleable_subset
-from ml_tools.utils import save_pickle_safely
+from ml_tools.utils import save_pickle_safely, load_pickle_safely
 from os import makedirs
 from os.path import join
 from sklearn.preprocessing import StandardScaler
@@ -14,16 +14,21 @@ from scipy.special import expit
 from jax.nn import log_sigmoid
 from sdm_ml.checklist_level.utils import evaluate_on_chunks
 from .functional.utils import predict_env_from_samples, predict_obs_from_samples
-from ml_tools.patsy import remove_intercept_column
+from ml_tools.patsy import (
+    remove_intercept_column,
+    save_design_info,
+    restore_design_info,
+)
 
 
 class MultiSpeciesOccuStan(ChecklistModel):
-    def __init__(self, model_file, env_formula, obs_formula):
+    def __init__(self, model_file, env_formula, obs_formula, is_test_run=False):
 
         self.scaler = None
         self.stan_model = load_stan_model_cached(model_file)
         self.env_formula = env_formula
         self.obs_formula = obs_formula
+        self.is_test_run = is_test_run
 
     def fit(
         self,
@@ -32,6 +37,9 @@ class MultiSpeciesOccuStan(ChecklistModel):
         y_checklist: pd.DataFrame,
         checklist_cell_ids: np.ndarray,
     ):
+
+        self.X_env = X_env
+        self.X_checklist = X_checklist
 
         self.species_names = y_checklist.columns
 
@@ -62,7 +70,10 @@ class MultiSpeciesOccuStan(ChecklistModel):
             "y": y_checklist.values.astype(int),
         }
 
-        self.fit_results = self.stan_model.sampling(data=model_data, thin=4)
+        if self.is_test_run:
+            self.fit_results = self.stan_model.sampling(data=model_data, iter=10)
+        else:
+            self.fit_results = self.stan_model.sampling(data=model_data, thin=4)
 
     def predict_marginal_probabilities_direct(self, X: pd.DataFrame) -> pd.DataFrame:
 
@@ -107,3 +118,36 @@ class MultiSpeciesOccuStan(ChecklistModel):
         }
 
         save_pickle_safely(to_pickle, join(target_folder, "fit_results.pkl"))
+
+        # Save the design infos
+        save_design_info(
+            self.X_env,
+            self.env_formula,
+            self.env_design_info,
+            join(target_folder, "design_info_env.pkl"),
+        )
+
+        save_design_info(
+            self.X_checklist,
+            self.obs_formula,
+            self.obs_design_info,
+            join(target_folder, "design_info_obs.pkl"),
+        )
+
+    def restore_model(self, load_folder: str) -> None:
+
+        fit_results = load_pickle_safely(join(load_folder, "fit_results.pkl"))
+
+        self.fit_results = fit_results["fit_result"]
+        self.obs_cov_names = fit_results["obs_cov_names"]
+        self.env_cov_names = fit_results["env_cov_names"]
+        self.species_names = fit_results["species_names"]
+        self.env_formula = fit_results["env_formula"]
+        self.obs_formula = fit_results["obs_formula"]
+
+        self.env_design_info = restore_design_info(
+            join(load_folder, "design_info_env.pkl")
+        )
+        self.obs_design_info = restore_design_info(
+            join(load_folder, "design_info_obs.pkl")
+        )
