@@ -5,7 +5,7 @@ from ml_tools.max_lik import find_map_estimate
 from patsy import dmatrix, build_design_matrices
 from functools import partial
 from jax import jit
-from sdm_ml.checklist_level.likelihoods import compute_checklist_likelihood
+from occu_py.likelihoods import compute_checklist_likelihood
 from sklearn.preprocessing import StandardScaler
 
 

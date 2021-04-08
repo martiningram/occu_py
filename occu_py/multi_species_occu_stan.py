@@ -12,7 +12,7 @@ from sklearn.preprocessing import StandardScaler
 from ml_tools.stan import load_stan_model_cached
 from scipy.special import expit
 from jax.nn import log_sigmoid
-from sdm_ml.checklist_level.utils import evaluate_on_chunks
+from occu_py.utils import evaluate_on_chunks
 from .functional.utils import predict_env_from_samples, predict_obs_from_samples
 from ml_tools.patsy import (
     remove_intercept_column,

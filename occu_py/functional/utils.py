@@ -1,7 +1,7 @@
 import jax.numpy as jnp
 from jax import jit
 from jax.nn import sigmoid, log_sigmoid
-from sdm_ml.checklist_level.utils import evaluate_on_chunks
+from occu_py.utils import evaluate_on_chunks
 
 
 def predict_env_from_samples(env_covs, env_slope_samples, env_intercept_samples):

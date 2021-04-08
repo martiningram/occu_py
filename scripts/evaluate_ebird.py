@@ -108,7 +108,6 @@ train_covs = train_covs[bio_covs + to_add]
 test_covs = test_covs[bio_covs + to_add]
 
 env_formula = env_formula + "+" + combined
-# env_formula = env_formula + "+" + "dominant_cover"
 
 print(env_formula)
 

@@ -3,9 +3,9 @@ import numpy as np
 from jax import vmap
 from jax.scipy.stats import norm
 from jax_advi.constraints import constrain_positive
-from sdm_ml.checklist_level.likelihoods import compute_checklist_likelihood
+from occu_py.likelihoods import compute_checklist_likelihood
 from ml_tools.jax import half_normal_logpdf
-from sdm_ml.checklist_level.utils import split_every
+from occu_py.utils import split_every
 
 theta_constraints = {
     "obs_coef_prior_sds": constrain_positive,
