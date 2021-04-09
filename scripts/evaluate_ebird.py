@@ -49,9 +49,7 @@ train_set = ebird_dataset["train"]
 bio_covs = [x for x in train_set.X_env.columns if "bio" in x]
 train_covs = train_set.X_env
 
-stan_model_path = (
-    "/home/martin/projects/sdm_ml/sdm_ml/checklist_level/stan/checklist_model.stan"
-)
+stan_model_path = "/home/martin/projects/occu_py/occu_py/checklist_model.stan"
 
 # min_presences = 5
 # n_species = 4
