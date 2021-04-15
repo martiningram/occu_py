@@ -35,7 +35,15 @@ Please install the following repositories:
 * The requirements listed in `requirements.txt`. You can do this using `pip install -r requirements.txt`
 
 To get GPU support, you will need to install JAX with GPU support. Instructions
-are here: https://github.com/google/jax
+are here: https://github.com/google/jax . Please note that we have noticed a
+large performance hit with the latest JAX version (0.2.12 at the time of
+writing). The timings in the paper are using JAX 0.2.8 with jaxlib 0.1.57, so
+please install this combination. At the time of writing, this could be done as
+follows:
+
+```
+pip install --upgrade jax==0.2.8 jaxlib==0.1.57+cuda101 -f https://storage.googleapis.com/jax-releases/jax_releases.html
+```
 
 Once all this is installed, you can install the actual `occu_py` package: `pip install -e .`
 
