@@ -14,6 +14,7 @@ import pickle
 from .functional.max_lik_occu_model import fit, predict_env_logit, predict_obs_logit
 from ml_tools.patsy import create_formula, save_design_info, restore_design_info
 from glob import glob
+import jax
 
 
 class MaxLikOccu(ChecklistModel):
@@ -51,6 +52,11 @@ class MaxLikOccu(ChecklistModel):
                 self.det_formula,
                 scale_env_data=False,
             )
+
+            # Make sure JAX clears its memory:
+            backend = jax.lib.xla_bridge.get_backend()
+            for buf in backend.live_buffers():
+                buf.delete()
 
             # print(
             #     cur_species,

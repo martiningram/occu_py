@@ -65,11 +65,12 @@ def fit(
     )
 
     env_coef_results = pd.Series(
-        fit_result["env_coefs"], index=env_design_mat.design_info.column_names
+        np.array(fit_result["env_coefs"]), index=env_design_mat.design_info.column_names
     )
 
     obs_coef_results = pd.Series(
-        fit_result["obs_coefs"], index=checklist_design_mat.design_info.column_names
+        np.array(fit_result["obs_coefs"]),
+        index=checklist_design_mat.design_info.column_names,
     )
 
     return {

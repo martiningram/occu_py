@@ -81,18 +81,14 @@ def load_ebird_dataset(
     train_checklists, train_y = split_data(sampling_data, species_pa_df, train_folds)
     test_checklists, test_y = split_data(sampling_data, species_pa_df, test_folds)
 
-    # Ditch species observed fewer than five times in the training set:
+    # Remove species observed fewer than five times in the training set:
     train_counts = train_y.sum(axis=0)
     to_keep = train_counts[train_counts >= 5].index
 
     train_y = train_y[to_keep]
     test_y = test_y[to_keep]
 
-    import ipdb
-
-    ipdb.set_trace()
-
-    # Ditch overly-correlated covariates
+    # Remove overly-correlated covariates
     all_cov_names = [x for x in covariates.columns if "bio" in x]
     other_names = [x for x in covariates.columns if x not in all_cov_names]
     to_keep = list(remove_correlated_variables(covariates[all_cov_names])) + other_names
