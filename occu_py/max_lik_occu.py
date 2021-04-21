@@ -54,9 +54,9 @@ class MaxLikOccu(ChecklistModel):
             )
 
             # Make sure JAX clears its memory:
-            backend = jax.lib.xla_bridge.get_backend()
-            for buf in backend.live_buffers():
-                buf.delete()
+            # backend = jax.lib.xla_bridge.get_backend()
+            # for buf in backend.live_buffers():
+            #     buf.delete()
 
             # print(
             #     cur_species,
