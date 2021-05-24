@@ -1,5 +1,5 @@
 ---
-title: "OccuPy Reticulate Example"
+title: "ROccuPy Example"
 output: html_document
 ---
 
@@ -7,27 +7,54 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-# Occupancy detection modelling with OccuPy and R
+# Occupancy detection modelling with ROccuPy
 
-Although `occu_py` is written in python, we can use `reticulate` to use it from R. This document shows how on a small subset of eBird using 8,000 checklists and 32 species.
+This document shows how on a small subset of eBird using 8,000 checklists and 32 species.
+
+### The data format
 
 ```{r}
-# Load example data
+library(roccupy)
 
-# Observation covariates
-X_checklist <- read.csv('../data/X_checklist.csv', row.names = 1)
-
-# Observations
-y_checklist <- read.csv('../data/y_checklist.csv', check.names = FALSE, row.names = 1)
-
-# Cell ids
-checklist_cell_ids <- read.csv('../data/checklist_cell_ids.csv', row.names = 1)
-
-# Environment variables
-X_env <- read.csv('../data/X_env.csv', row.names = 1)
+# Load the example data
+data(eBird)
+names(eBird)
 ```
 
+As you can see, the dataset consists of four different items. Let's go through these in turn.
+
 ```{r}
+head(eBird$X_checklist)
+```
+`X_checklist` contains the observation-level covariates. These are things like the duration of the observations, the time of day, and so on -- anything that could affect the detection process.
+
+```{r}
+head(eBird$y_checklist)
+```
+`y_checklist` specifies whether each species was or was not observed for each checklist. `X_checklist` and `y_checklist` should have the same number of rows.
+
+```{r}
+head(eBird$X_env)
+```
+`X_env` contains the environmental covariates thought to influence whether a species is present or absent at each site. Because there are repeat visits, `X_env` will typically have fewer rows than `X_checklist`: there are fewer sites than observations.
+
+```{r}
+head(eBird$checklist_cell_ids)
+```
+Finally, the `checklist_cell_ids` provide the link between sites and observations. Each entry specifies which site (or cell) the observation was made in. For example, in this case, the first observation was made in site 287. Please note that sites are numbered from zero, so this would correspond to X_env[288], for example. Storing the data in this way is useful as some sites are visited far more frequently than others. You can see this here:
+
+```{r}
+head(sort(table(eBird$checklist_cell_ids), decreasing = TRUE), 20)
+```
+
+### Fitting a model to eBird
+
+We'll now walk through the steps required to fit a multi-species occupancy detection model to this dataset using variational inference.
+
+```{r}
+# To make the code a little less cluttered, we can attach the entries in "eBird":
+attach(eBird, warn.conflicts = FALSE)
+
 # We'll want to scale the continuous environment variables.
 bio_cols <- colnames(X_env)[grepl('bio', colnames(X_env))]
 
@@ -49,103 +76,101 @@ log_duration_sd <- sd(log_durations)
 X_checklist$log_duration_z <- (log_durations - log_duration_mean) / log_duration_sd
 ```
 
+We've now preprocessed our environmental covariates so that the continuous covariates are scaled. You can take a look at the covariates we'll use here:
+
 ```{r}
 full_X_env <- data.frame(full_X_env)
 head(full_X_env)
 ```
+Let's make sure reticulate works as needed. Note that this will depend on your setup. I'm using reticulate with conda and an environment using `pymc3`, but you will need to change this to your own version.
 
 ```{r}
-# options(reticulate.useImportHook = FALSE)
 library(reticulate)
 
+# You may have a different setup.
 # I installed the package into my "pymc3" conda environment, so:
 use_condaenv('pymc3')
 
-# We need this import, slightly frustratingly, even if we don't actually use MCMC.
-# Numpyro will otherwise assume we want to use the CPU and all JAX computations seem to use it.
-# If you use CPU only, please set the platform to cpu.
-numpyro <- import('numpyro')
-numpyro$set_platform('gpu')
+library(roccupy)
 
-occu_py <- import('occu_py.multi_species_occu_advi')
-ml_tools <- import('ml_tools')
+# Set this to FALSE if you don't have a GPU.
+roccupy::set_gpu(TRUE)
 ```
 
 ```{r}
+# We can generate a formula. You can also specify one as you like.
+# It just has to be compatible with the patsy package.
 env_formula <- ml_tools$patsy$create_formula(cov_names=bio_cols, main_effects = TRUE, quadratic_effects = TRUE, interactions = FALSE)
 obs_formula <- "protocol_type + daytimes_alt + log_duration_z + dominant_land_cover"
 ```
 
 ```{r}
-model <- occu_py$MultiSpeciesOccuADVI(env_formula=env_formula, obs_formula=obs_formula, M=100L, n_draws=1000L, verbose_fit=TRUE)
-```
-
-```{r}
-# Takes about 2 minutes on GPU.
+# Takes about 20 seconds on GPU; 17 minutes on CPU. So GPU definitely recommended!
 start_time <- Sys.time()
-model$fit(X_env=full_X_env, X_checklist = X_checklist, y_checklist = data.frame(y_checklist == 'True', check.names = FALSE), checklist_cell_ids = checklist_cell_ids$X0)
+fit_model <- msod_vi(env_formula, obs_formula, full_X_env, X_checklist, 
+                       y_checklist = y_checklist,
+                       checklist_cell_ids = checklist_cell_ids, M=20L)
 end_time <- Sys.time()
 print(end_time - start_time)
 ```
-
 ```{r}
-az <- import('arviz')
-model$samples$posterior
-```
-```{r}
-# This is an arviz object.
-# We can look at the draws for the intercepts, for example:
-env_intercept_draws <- data.frame(model$samples$posterior$env_intercepts[0]$values)
-colnames(env_intercept_draws) <- colnames(y_checklist)
+# We can extract the draws for the coefficients as follows:
+coef_draws <- coef(fit_model)
 
-head(env_intercept_draws)
+# This is a list:
+names(coef_draws)
 ```
 
 ```{r}
-# We can take a look at the means:
-colMeans(env_intercept_draws)
-```
-```{r}
-model$design_info$obs$column_names
-```
+library(ggplot2)
 
-```{r}
-# How about detectability?
-obs_coef_draws <- model$samples$posterior$obs_coefs[0]
+# Let's take a look at the intercepts first, for example:
+intercept_draws <- coef_draws$env_intercepts
 
-# Find the means:
-mean_coefs <- t(obs_coef_draws$mean(dim='draw')$values)
+p <- ggplot(intercept_draws, aes(x=`Antrostomus vociferus`)) + geom_histogram() + theme_classic()
 
-mean_coefs <- data.frame(mean_coefs, row.names = colnames(y_checklist))
-colnames(mean_coefs) <- model$design_info$obs$column_names
+p
 ```
 
 ```{r}
-mean_coefs[order(mean_coefs$`daytimes_alt[T.dusk]`), ]
+# How about a plot of detectability by day vs detectability by night?
+obs_slopes <- coef_draws$obs_slopes
+
+# This is a list of species names -> draws. Let's compute the means.
+obs_slope_means <- lapply(obs_slopes, colMeans)
+
+obs_slope_means <- data.frame(do.call(rbind, obs_slope_means), check.names = FALSE)
+
+# For easier plotting:
+obs_slope_means$species_name <- row.names(obs_slope_means)
+
+head(obs_slope_means)
 ```
+```{r, fig.width=8, fig.height=6}
+# You should see Antrostomus vociferus being much more likely to be detected at dusk than at dawn (the reference)
+library(ggrepel)
+
+ggplot(obs_slope_means, aes(x=`daytimes_alt[T.dusk]`, y=`daytimes_alt[T.early-morning]`, label=species_name)) + geom_point() + geom_text_repel() + theme_classic()
+```
+
 ```{r}
 # We can also predict. Here, let's just use the training data.
 # If we want to predict the probabilities of presence, we can use:
-env_preds <- model$predict_marginal_probabilities_direct(X = full_X_env)
+env_preds <- predict(fit_model, full_X_env, type='env')
 ```
 
 ```{r}
 # If we want the probability of detection, we can use:
-obs_preds <- model$predict_marginal_probabilities_obs(full_X_env, X_checklist)
+obs_preds <- predict(fit_model, full_X_env, X_checklist, type='obs')
 ```
+
 ```{r}
 # Save the model
-model$save_model('./saved_model/')
+save_model(fit_model, 'save_test')
 ```
 ```{r}
 # Restore it:
-model <- occu_py$MultiSpeciesOccuADVI(env_formula=env_formula, obs_formula=obs_formula, M=100L, n_draws=1000L, verbose_fit=TRUE)
-model$restore_model('./saved_model/')
+restored_model <- restore_model('./save_test/')
 
-env_preds_new <- model$predict_marginal_probabilities_direct(X = full_X_env)
+env_preds_new <- predict(restored_model, full_X_env)
 ```
-
-```{r}
-all(env_preds_new == env_preds)
-```
-

@@ -116,3 +116,50 @@ class MultiSpeciesOccuADVI(ChecklistModel):
             "obs": obs_design_info,
             "species_names": other_design_info["species_names"],
         }
+
+    def get_draw_dfs(self):
+
+        posterior = self.samples.posterior
+
+        env_intercept_draws = pd.DataFrame(
+            posterior.env_intercepts[0].values,
+            columns=self.design_info["species_names"],
+        )
+
+        obs_coef_draws = posterior.obs_coefs[0].values
+        env_coef_draws = posterior.env_slopes[0].values
+
+        obs_coef_draws_by_species = {
+            x: pd.DataFrame(
+                obs_coef_draws[:, :, i], columns=self.design_info["obs"].column_names
+            )
+            for i, x in enumerate(self.design_info["species_names"])
+        }
+
+        env_coef_draws_by_species = {
+            x: pd.DataFrame(
+                env_coef_draws[:, :, i],
+                columns=[
+                    x for x in self.design_info["env"].column_names if x != "Intercept"
+                ],
+            )
+            for i, x in enumerate(self.design_info["species_names"])
+        }
+
+        obs_prior_mean_draws = posterior.obs_coef_prior_means[0].values
+        obs_prior_sds_draws = posterior.obs_coef_prior_sds[0].values
+
+        prior_mean_draws = pd.DataFrame(
+            obs_prior_mean_draws[:, :, 0], columns=self.design_info["obs"].column_names
+        )
+        prior_sd_draws = pd.DataFrame(
+            obs_prior_sds_draws[:, :, 0], columns=self.design_info["obs"].column_names
+        )
+
+        return {
+            "env_intercepts": env_intercept_draws,
+            "env_slopes": env_coef_draws_by_species,
+            "obs_prior_means": prior_mean_draws,
+            "obs_prior_sds": prior_sd_draws,
+            "obs_slopes": obs_coef_draws_by_species,
+        }

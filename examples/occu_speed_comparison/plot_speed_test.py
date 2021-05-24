@@ -1,3 +1,4 @@
+import numpy as np
 from glob import glob
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -30,6 +31,7 @@ ax.plot(
 ax.set_yscale("log")
 ax.set_xscale("log")
 ax.grid(which="major")
+ax.set_xlim(1000, 100000)
 
 ax.set_xlabel("Number of checklists")
 ax.set_ylabel("Runtime (minutes)")
