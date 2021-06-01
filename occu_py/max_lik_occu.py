@@ -18,12 +18,13 @@ import jax
 
 
 class MaxLikOccu(ChecklistModel):
-    def __init__(self, env_formula, det_formula):
+    def __init__(self, env_formula, det_formula, verbose=False):
 
         self.fit_results = None
         self.species_names = None
         self.env_formula = env_formula
         self.det_formula = det_formula
+        self.verbose = verbose
 
     def fit(
         self,
@@ -39,7 +40,9 @@ class MaxLikOccu(ChecklistModel):
         self.fit_results = list()
         self.species_names = y_checklist.columns
 
-        for cur_species in tqdm(self.species_names):
+        iterator = tqdm(self.species_names) if self.verbose else self.species_names
+
+        for cur_species in iterator:
 
             cur_y_checklist = y_checklist[cur_species].values
 
