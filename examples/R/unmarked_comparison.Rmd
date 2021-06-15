@@ -44,10 +44,10 @@ det_coefs
 Now we can compare this with the python version.
 
 ```{r}
-library(reticulate)
+library(roccupy)
 
 # Change this to whichever environment you are using
-use_condaenv('pymc3', required=TRUE)
+# use_condaenv('pymc3', required=TRUE)
 
 # Imports:
 np <- import('numpy')
