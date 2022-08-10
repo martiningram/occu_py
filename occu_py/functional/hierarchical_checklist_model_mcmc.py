@@ -1,4 +1,3 @@
-from ml_tools.numpyro_mcmc import sample_nuts
 from sklearn.preprocessing import StandardScaler
 from patsy import dmatrix, build_design_matrices
 import numpy as np
@@ -33,6 +32,7 @@ def fit(
     thinning=1,
     chain_method="vectorized",
 ):
+    from ml_tools.numpyro_mcmc import sample_nuts
 
     env_design_mat = dmatrix(env_formula, X_env)
     checklist_design_mat = dmatrix(checklist_formula, X_checklist)
